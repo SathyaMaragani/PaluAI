@@ -1,6 +1,6 @@
 name: Palu Agent
 
-# Comment "@palu <extra instructions>" on an issue -> Aider + a free GitHub Models model
+# Comment "@palu <extra instructions>" on an issue -> Aider + a free model (Groq / OpenRouter)
 # edits the code, runs the tests, and opens a PR. Only repo owners/members/collaborators can trigger it.
 on:
   issue_comment:
@@ -18,7 +18,6 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-      models: read # free GitHub Models inference with the built-in token
     env:
       GH_TOKEN: ${{ github.token }}
       N: ${{ github.event.issue.number }}
@@ -34,9 +33,10 @@ jobs:
 
       - name: Run Aider
         env:
-          OPENAI_API_BASE: https://models.github.ai/inference
-          OPENAI_API_KEY: ${{ github.token }}
-          MODEL: ${{ vars.PALU_MODEL || 'openai/gpt-4.1' }}
+          # Add whichever free key you have; the model prefix picks the provider.
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          MODEL: ${{ vars.PALU_MODEL || 'groq/openai/gpt-oss-120b' }}
           TITLE: ${{ github.event.issue.title }}
           BODY: ${{ github.event.issue.body }}
           EXTRA: ${{ github.event.comment.body }}
@@ -45,7 +45,7 @@ jobs:
           git config user.email "palu-agent@users.noreply.github.com"
           git checkout -b "$BRANCH"
           # ponytail: passes every tracked .py file; for big repos drop the file list and let Aider's repo map choose.
-          aider --model "openai/$MODEL" --yes-always --no-gitignore --no-check-update --no-analytics \
+          aider --model "$MODEL" --yes-always --no-gitignore --no-check-update --no-analytics \
             --no-show-model-warnings --no-pretty --no-stream \
             --test-cmd "python -m unittest" --auto-test \
             --message "Resolve GitHub issue #$N.
@@ -66,4 +66,4 @@ jobs:
           gh pr create --head "$BRANCH" --title "Palu: $(gh issue view "$N" --json title --jq .title)" \
             --body "Closes #$N
 
-          $RESULT (\`python -m unittest\`). Model: \`${{ vars.PALU_MODEL || 'openai/gpt-4.1' }}\` via GitHub Models."
+          $RESULT (\`python -m unittest\`). Model: \`${{ vars.PALU_MODEL || 'groq/openai/gpt-oss-120b' }}\`."

@@ -1,7 +1,4 @@
-# gemini-cli settings
-.gemini/
-
-# GitHub App credentials
-gha-creds-*.json
+# Aider
+.aider*
 
 __pycache__/

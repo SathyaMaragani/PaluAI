@@ -31,6 +31,13 @@ Only the repo OWNER, MEMBERs, and COLLABORATORs can trigger the agent. Strangers
 
 Other commands: `@gemini-cli /review` on a PR, `@gemini-cli /triage` on an issue, and `@gemini-cli <question>` for questions.
 
+## Option B: Palu agent (Aider + free GitHub Models, no API key)
+
+Comment `@palu` on an issue (optionally followed by extra instructions). [Aider](https://aider.chat) edits the code
+using a free [GitHub Models](https://github.com/marketplace/models) model, runs `python -m unittest`, and opens a PR.
+There's no plan-and-approve step: you review the PR instead. Change the model with the repo variable `PALU_MODEL`
+(default `openai/gpt-4.1`, e.g. `deepseek/DeepSeek-V3-0324` or `meta/Llama-4-Maverick-17B-128E-Instruct-FP8`).
+
 ## Limits
 
 - The agent edits files through the GitHub API. It can't run shell commands, so `tests.yml` checks its work on the PR.

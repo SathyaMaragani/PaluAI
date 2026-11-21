@@ -1,0 +1,69 @@
+name: Palu Agent
+
+# Comment "@palu <extra instructions>" on an issue -> Aider + a free GitHub Models model
+# edits the code, runs the tests, and opens a PR. Only repo owners/members/collaborators can trigger it.
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  agent:
+    if: >-
+      !github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '@palu') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      models: read # free GitHub Models inference with the built-in token
+    env:
+      GH_TOKEN: ${{ github.token }}
+      N: ${{ github.event.issue.number }}
+      BRANCH: palu/issue-${{ github.event.issue.number }}
+    steps:
+      - run: gh issue comment "$N" --repo "$GITHUB_REPOSITORY" --body "🤖 Palu is on it. [Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet aider-chat
+
+      - name: Run Aider
+        env:
+          OPENAI_API_BASE: https://models.github.ai/inference
+          OPENAI_API_KEY: ${{ github.token }}
+          MODEL: ${{ vars.PALU_MODEL || 'openai/gpt-4.1' }}
+          TITLE: ${{ github.event.issue.title }}
+          BODY: ${{ github.event.issue.body }}
+          EXTRA: ${{ github.event.comment.body }}
+        run: |
+          git config user.name "palu-agent[bot]"
+          git config user.email "palu-agent@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          # ponytail: passes every tracked .py file; for big repos drop the file list and let Aider's repo map choose.
+          aider --model "openai/$MODEL" --yes-always --no-gitignore --no-check-update --no-analytics \
+            --no-show-model-warnings --no-pretty --no-stream \
+            --test-cmd "python -m unittest" --auto-test \
+            --message "Resolve GitHub issue #$N.
+          Title: $TITLE
+          Description: $BODY
+          Maintainer comment: $EXTRA" \
+            $(git ls-files '*.py')
+
+      - name: Open PR
+        run: |
+          if [ -z "$(git log origin/main..HEAD --oneline)" ]; then
+            gh issue comment "$N" --body "🤖 Palu made no changes. Check the logs."
+            exit 1
+          fi
+          # PRs opened with the built-in token don't trigger other workflows, so run the tests here.
+          if python -m unittest 2> test.log; then RESULT="✅ Tests pass"; else RESULT="❌ Tests fail"; fi
+          git push -u origin "$BRANCH"
+          gh pr create --head "$BRANCH" --title "Palu: $(gh issue view "$N" --json title --jq .title)" \
+            --body "Closes #$N
+
+          $RESULT (\`python -m unittest\`). Model: \`${{ vars.PALU_MODEL || 'openai/gpt-4.1' }}\` via GitHub Models."
